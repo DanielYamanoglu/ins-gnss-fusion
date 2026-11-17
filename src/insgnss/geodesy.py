@@ -50,3 +50,13 @@ def enu_to_geodetic(e, n, u, origin):
     ecef = geodetic_to_ecef(*origin)[:, None] + _ecef_to_enu_rotation(origin[0], origin[1]).T @ np.vstack([e, n, u])
     lat, lon, h = ecef_to_geodetic(*ecef)
     return lat, lon, h
+
+
+def geodetic_to_ned(lat, lon, h, origin):
+    """North, East, Down relative to origin, the navigation frame of the filter."""
+    e, n, u = geodetic_to_enu(lat, lon, h, origin)
+    return np.array([n, e, -u])
+
+
+def ned_to_geodetic(n, e, d, origin):
+    return enu_to_geodetic(e, n, -np.asarray(d), origin)

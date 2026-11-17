@@ -1,28 +1,47 @@
 {
   "runs": 50,
-  "position_rmse_m": {
-    "ins_gnss_ekf": 1.382425668995983,
-    "gnss_only": 3.5319997328065824
+  "imu": {
+    "gyro_arw_deg_sqrt_h": 0.3,
+    "accel_vrw_mps_sqrt_h": 0.1,
+    "gyro_turn_on_bias_deg_h": 50.0,
+    "accel_turn_on_bias_mg": 2.0
   },
-  "velocity_rmse_mps": 0.1850937293805298,
-  "heading_rmse_deg": 1.3674557945465065,
-  "outage_s": 30.0,
-  "error_at_end_of_outage_m": {
-    "mean": 2.903681633238873,
-    "p95": 5.031837112887647
+  "horizontal_rmse_m": {
+    "ins_gnss": 0.6383098871652776,
+    "gnss_only_all_fixes": 6.024268642909569,
+    "gnss_only_without_outliers": 2.8327025165484963
   },
-  "uncalibrated_dead_reckoning_after_same_gap_m": 37.86535774230784,
+  "velocity_rmse_mps": 0.06548046234796948,
+  "roll_pitch_rmse_deg": 0.10018162719687218,
+  "yaw_rmse_deg": 0.2885710717072109,
+  "outage_s": 60.0,
+  "horizontal_error_end_of_outage_m": {
+    "mean": 13.989540648313094,
+    "p95": 26.84983814281283
+  },
+  "dead_reckoning_after_same_time_from_alignment_m": 134.44795067124608,
+  "gyro_bias_error_deg_h": {
+    "after_alignment": 79.03537193235194,
+    "end": 2.3623902702223787
+  },
   "nees": {
-    "mean": 5.3273150687548965,
-    "dof": 5,
+    "mean": 9.097507140309423,
+    "dof": 9,
     "band95": [
-      4.161889793848182,
-      5.913815082863646
+      7.86230656460679,
+      10.213428251671523
     ],
-    "share_of_time_in_band": 0.8676406644056005
+    "share_of_time_in_band": 0.9174065762513416
   },
-  "gyro_bias_error_deg_per_h": {
-    "start": 301.3414534734083,
-    "end": 15.108027187464662
+  "outlier_gate": {
+    "outliers": 413,
+    "caught": 413,
+    "valid": 12837,
+    "valid_rejected": 13
+  },
+  "outlier_gate_effect_horizontal_rmse_m": {
+    "gated": 0.6514925904038443,
+    "ungated": 1.1287827729404742,
+    "runs": 20
   }
 }

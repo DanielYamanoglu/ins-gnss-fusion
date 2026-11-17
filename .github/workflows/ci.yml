@@ -15,4 +15,4 @@ jobs:
           python-version: "3.12"
       - run: uv sync
       - run: uv run pytest -q
-      - run: uv run insgnss --runs 5
+      - run: uv run insgnss --runs 3

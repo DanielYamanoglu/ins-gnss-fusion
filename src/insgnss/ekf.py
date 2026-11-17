@@ -1,8 +1,9 @@
-"""Loosely coupled INS/GNSS extended Kalman filter.
+"""15-state error-state extended Kalman filter for loosely coupled INS/GNSS in a local NED frame.
 
-State x = [pE, pN, vE, vN, psi, ba_f, ba_l, bg]: position, velocity, heading, accelerometer
-biases (forward, left) and gyro bias. The IMU drives the prediction (strapdown mechanisation);
-each GNSS fix, converted from latitude/longitude to the local frame, corrects it.
+Nominal state: position, velocity (NED), attitude quaternion (body to NED), accelerometer and gyro
+biases. Error state (15): position, velocity, attitude error (local, small angle), both biases.
+Earth rotation and transport rate are neglected: over 10 km and with a 50 deg/h gyro they are well
+below the sensor errors.
 """
 from __future__ import annotations
 
@@ -10,85 +11,96 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .geodesy import geodetic_to_enu
-from .simulate import ORIGIN, GnssSpec, ImuSpec
+from .geodesy import geodetic_to_ned
+from .rotations import quat_exp, quat_mul, quat_to_rot, skew, so3_exp
+from .sensors import ORIGIN, GnssSpec, ImuSpec
+from .trajectory import G_NED
 
-N = 8
-NAV = slice(0, 5)  # position, velocity, heading: the states judged by NEES
-H = np.zeros((2, N))
-H[0, 0] = H[1, 1] = 1.0
-
-
-def rot(psi: float) -> np.ndarray:
-    c, s = np.cos(psi), np.sin(psi)
-    return np.array([[c, -s], [s, c]])
-
-
-def wrap(angle):
-    return (angle + np.pi) % (2 * np.pi) - np.pi
+N = 15
+P_, V_, TH, BA, BG = slice(0, 3), slice(3, 6), slice(6, 9), slice(9, 12), slice(12, 15)
+H = np.zeros((6, N))
+H[0:3, P_] = np.eye(3)
+H[3:6, V_] = np.eye(3)
+GATE = 22.46  # chi-square, 6 dof, 99.9%: a valid fix is rejected once in a thousand
 
 
-def propagate(x: np.ndarray, accel: np.ndarray, gyro: float, dt: float) -> np.ndarray:
-    """Strapdown mechanisation in the plane: rotate bias-corrected specific force to ENU, integrate."""
-    psi = x[4]
-    a_nav = rot(psi) @ (accel - x[5:7])
-    out = x.copy()
-    out[0:2] = x[0:2] + x[2:4] * dt + 0.5 * a_nav * dt**2
-    out[2:4] = x[2:4] + a_nav * dt
-    out[4] = wrap(psi + (gyro - x[7]) * dt)
-    return out
+@dataclass
+class State:
+    p: np.ndarray
+    v: np.ndarray
+    q: np.ndarray
+    ba: np.ndarray
+    bg: np.ndarray
+
+    def copy(self) -> "State":
+        return State(self.p.copy(), self.v.copy(), self.q.copy(), self.ba.copy(), self.bg.copy())
 
 
-def transition_jacobian(x: np.ndarray, accel: np.ndarray, dt: float) -> np.ndarray:
-    psi = x[4]
-    f = accel - x[5:7]
-    d_rot = np.array([[-np.sin(psi), -np.cos(psi)], [np.cos(psi), -np.sin(psi)]])
-    F = np.zeros((N, N))
-    F[0:2, 2:4] = np.eye(2)
-    F[2:4, 4] = d_rot @ f
-    F[2:4, 5:7] = -rot(psi)
-    F[4, 7] = -1.0
-    return np.eye(N) + F * dt
+def mechanise(x: State, f_b: np.ndarray, w_b: np.ndarray, dt: float) -> State:
+    """Strapdown: rotate bias-corrected specific force to NED, add gravity, integrate; update attitude."""
+    R = quat_to_rot(x.q)
+    a = R @ (f_b - x.ba) + G_NED
+    q = quat_mul(x.q, quat_exp((w_b - x.bg) * dt))
+    return State(x.p + x.v * dt + 0.5 * a * dt**2, x.v + a * dt, q / np.linalg.norm(q), x.ba, x.bg)
 
 
-def process_noise(x: np.ndarray, dt: float, imu: ImuSpec) -> np.ndarray:
+def error_transition(x: State, f_b: np.ndarray, w_b: np.ndarray, dt: float) -> np.ndarray:
+    R = quat_to_rot(x.q)
+    F = np.eye(N)
+    F[P_, V_] = np.eye(3) * dt
+    # Position also sees attitude and accelerometer errors through the 0.5*a*dt^2 term.
+    F[P_, TH] = -0.5 * R @ skew(f_b - x.ba) * dt**2
+    F[P_, BA] = -0.5 * R * dt**2
+    F[V_, TH] = -R @ skew(f_b - x.ba) * dt
+    F[V_, BA] = -R * dt
+    F[TH, TH] = so3_exp((w_b - x.bg) * dt).T
+    F[TH, BG] = -np.eye(3) * dt
+    return F
+
+
+def process_noise(x: State, dt: float, imu: ImuSpec) -> np.ndarray:
     Q = np.zeros((N, N))
-    R = rot(x[4])
-    Q[2:4, 2:4] = R @ np.diag([(imu.accel_noise * dt) ** 2] * 2) @ R.T
-    Q[4, 4] = (imu.gyro_noise * dt) ** 2
-    Q[5:7, 5:7] = np.eye(2) * imu.accel_bias_walk**2 * dt
-    Q[7, 7] = imu.gyro_bias_walk**2 * dt
+    Q[V_, V_] = np.eye(3) * imu.accel_noise_density**2 * dt
+    Q[TH, TH] = np.eye(3) * imu.gyro_noise_density**2 * dt
+    Q[BA, BA] = np.eye(3) * imu.accel_bias_walk_density**2 * dt
+    Q[BG, BG] = np.eye(3) * imu.gyro_bias_walk_density**2 * dt
     return Q
 
 
 @dataclass
 class InsGnssEkf:
-    x: np.ndarray
+    x: State
     P: np.ndarray
-    imu: ImuSpec = ImuSpec()
-    gnss: GnssSpec = GnssSpec()
+    imu: ImuSpec
+    gnss: GnssSpec
+    gating: bool = True
+    rejected: int = 0
 
-    @classmethod
-    def initialise(cls, pos, vel, psi, imu: ImuSpec = ImuSpec(), gnss: GnssSpec = GnssSpec(),
-                   pos_sigma=2.5, vel_sigma=0.5, psi_sigma=np.radians(2.0)) -> "InsGnssEkf":
-        x = np.r_[pos, vel, psi, 0.0, 0.0, 0.0]
-        P = np.diag([pos_sigma**2] * 2 + [vel_sigma**2] * 2 + [psi_sigma**2]
-                    + [imu.accel_bias_sigma**2] * 2 + [imu.gyro_bias_sigma**2])
-        return cls(x, P, imu, gnss)
+    def predict(self, f_b: np.ndarray, w_b: np.ndarray, dt: float) -> None:
+        F = error_transition(self.x, f_b, w_b, dt)
+        self.x = mechanise(self.x, f_b, w_b, dt)
+        self.P = F @ self.P @ F.T + process_noise(self.x, dt, self.imu)
 
-    def predict(self, accel: np.ndarray, gyro: float, dt: float) -> None:
-        Phi = transition_jacobian(self.x, accel, dt)
-        self.x = propagate(self.x, accel, gyro, dt)
-        self.P = Phi @ self.P @ Phi.T + process_noise(self.x, dt, self.imu)
-
-    def update_gnss(self, lat: float, lon: float, h: float) -> float:
-        """Correct with one GNSS fix; returns the normalised innovation squared."""
-        z = geodetic_to_enu(lat, lon, h, ORIGIN)[:2]
-        innovation = z - H @ self.x
-        S = H @ self.P @ H.T + np.eye(2) * self.gnss.position_sigma**2
+    def update_gnss(self, lla: np.ndarray, vel_ned: np.ndarray) -> float:
+        """Position (from lat/lon/height) and velocity update. Returns the NIS; gated fixes are skipped."""
+        z = np.r_[geodetic_to_ned(*lla, ORIGIN), vel_ned]
+        r = np.r_[self.gnss.horizontal_sigma, self.gnss.horizontal_sigma, self.gnss.vertical_sigma,
+                  [self.gnss.velocity_sigma] * 3] ** 2
+        Rm = np.diag(r)
+        y = z - np.r_[self.x.p, self.x.v]
+        S = H @ self.P @ H.T + Rm
+        nis = float(y @ np.linalg.solve(S, y))
+        if self.gating and nis > GATE:
+            self.rejected += 1
+            return nis
         K = self.P @ H.T @ np.linalg.inv(S)
-        self.x = self.x + K @ innovation
-        self.x[4] = wrap(self.x[4])
+        dx = K @ y
         IKH = np.eye(N) - K @ H
-        self.P = IKH @ self.P @ IKH.T + K @ (np.eye(2) * self.gnss.position_sigma**2) @ K.T  # Joseph form
-        return float(innovation @ np.linalg.solve(S, innovation))
+        self.P = IKH @ self.P @ IKH.T + K @ Rm @ K.T  # Joseph form
+        self.x.p = self.x.p + dx[P_]
+        self.x.v = self.x.v + dx[V_]
+        q = quat_mul(self.x.q, quat_exp(dx[TH]))
+        self.x.q = q / np.linalg.norm(q)
+        self.x.ba = self.x.ba + dx[BA]
+        self.x.bg = self.x.bg + dx[BG]
+        return nis
