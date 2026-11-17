@@ -39,7 +39,7 @@ What the numbers say:
 
 - **The outage is bridged because the biases were learned in flight.** A levelled IMU without calibration drifts 134 m in 60 s; the filter, coasting on biases it estimated before the outage, is 14 m off on average.
 - **Heading and the vertical gyro bias need manoeuvres.** Yaw starts with the 3° launch-azimuth uncertainty and only converges once the vehicle accelerates and turns; the z-axis gyro bias barely moves until the first banked turn at t = 80 s (bottom right).
-- **The gate behaves as designed.** It is set at the 99.9% chi-square point for six measurements and rejects 0.1% of valid fixes, exactly that rate, while catching every 30 m jump the filter was offered, including those right after the outage when its own uncertainty is largest. Without it, the jumps nearly double the position error.
+- **The gate behaves as designed.** It is set at the 99.9% chi-square point for six measurements and rejects 0.1% of valid fixes, exactly that rate, while catching every 30 m jump the filter was offered. Without it, the jumps raise the position error by about 75%.
 - **The covariance is honest.** Average NEES 9.1 against an expected 9 with an independent truth means the reported uncertainty can drive integrity checks and the outlier gate itself.
 
 ## How it works
