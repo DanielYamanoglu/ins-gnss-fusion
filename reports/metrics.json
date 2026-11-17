@@ -1,0 +1,28 @@
+{
+  "runs": 50,
+  "position_rmse_m": {
+    "ins_gnss_ekf": 1.382425668995983,
+    "gnss_only": 3.5319997328065824
+  },
+  "velocity_rmse_mps": 0.1850937293805298,
+  "heading_rmse_deg": 1.3674557945465065,
+  "outage_s": 30.0,
+  "error_at_end_of_outage_m": {
+    "mean": 2.903681633238873,
+    "p95": 5.031837112887647
+  },
+  "uncalibrated_dead_reckoning_after_same_gap_m": 37.86535774230784,
+  "nees": {
+    "mean": 5.3273150687548965,
+    "dof": 5,
+    "band95": [
+      4.161889793848182,
+      5.913815082863646
+    ],
+    "share_of_time_in_band": 0.8676406644056005
+  },
+  "gyro_bias_error_deg_per_h": {
+    "start": 301.3414534734083,
+    "end": 15.108027187464662
+  }
+}

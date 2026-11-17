@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 330" width="1000" height="330" role="img" aria-labelledby="t d">
+<title id="t">Loosely coupled INS/GNSS: IMU drives the prediction, GNSS fixes correct it</title><desc id="d">A 100 Hz IMU with bias and noise drives strapdown mechanisation in an extended Kalman filter. 1 Hz GNSS latitude and longitude fixes are converted through WGS-84 ECEF to a local East North Up frame and correct position, velocity, heading and the sensor biases. During a GNSS outage the filter coasts on the calibrated IMU.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker><style>
+      text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:#0f172a}
+      .h{font-size:15px;font-weight:700}
+      .s{font-size:12px;fill:#334155}
+      .k{font-size:11px;font-weight:700;fill:#64748b;letter-spacing:.08em}
+      .box{fill:#ffffff;stroke:#94a3b8;stroke-width:1.5}
+      .src{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .out{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+      .warn{fill:#fef3c7;stroke:#d97706;stroke-width:1.5}
+      .ln{stroke:#475569;stroke-width:1.6;fill:none}
+      .v{font-size:13px;font-weight:700}
+    </style></defs>
+<rect width="1000" height="330" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+<text class="k" x="30" y="38">SENSORS</text>
+<rect class="src" x="30" y="54" width="166" height="124" rx="8"/>
+<text class="h" x="44" y="82">IMU, 100 Hz</text>
+<text class="s" x="44" y="106">2-axis accelerometer</text>
+<text class="s" x="44" y="124">yaw gyro</text>
+<text class="s" x="44" y="142">bias, noise, random walk</text>
+<path class="ln" marker-end="url(#a)" d="M198 116.0H221"/>
+<text class="k" x="224" y="38">PREDICT</text>
+<rect class="box" x="224" y="54" width="166" height="124" rx="8"/>
+<text class="h" x="238" y="82">Strapdown INS</text>
+<text class="s" x="238" y="106">rotate specific force</text>
+<text class="s" x="238" y="124">integrate velocity, position</text>
+<text class="s" x="238" y="142">propagate covariance</text>
+<path class="ln" marker-end="url(#a)" d="M391 116.0H414"/>
+<text class="k" x="417" y="38">GNSS</text>
+<rect class="src" x="417" y="54" width="166" height="124" rx="8"/>
+<text class="h" x="431" y="82">GNSS, 1 Hz</text>
+<text class="s" x="431" y="106">latitude, longitude</text>
+<text class="s" x="431" y="124">WGS-84 to ECEF to ENU</text>
+<text class="s" x="431" y="142">2.5 m noise per axis</text>
+<path class="ln" marker-end="url(#a)" d="M585 116.0H608"/>
+<text class="k" x="611" y="38">UPDATE</text>
+<rect class="box" x="611" y="54" width="166" height="124" rx="8"/>
+<text class="h" x="625" y="82">EKF correction</text>
+<text class="s" x="625" y="106">8 states incl. biases</text>
+<text class="s" x="625" y="124">Joseph form update</text>
+<text class="s" x="625" y="142">NIS / NEES checks</text>
+<path class="ln" marker-end="url(#a)" d="M778 116.0H801"/>
+<text class="k" x="804" y="38">OUTPUT</text>
+<rect class="out" x="804" y="54" width="166" height="124" rx="8"/>
+<text class="h" x="818" y="82">Navigation solution</text>
+<text class="s" x="818" y="106">position, velocity</text>
+<text class="s" x="818" y="124">heading, bias estimates</text>
+<path class="ln" marker-end="url(#a)" d="M500 180V212"/>
+<rect class="warn" x="417" y="216" width="166" height="62" rx="8"/>
+<text class="h" x="431" y="241">Outage</text>
+<text class="s" x="431" y="261">30 s: filter coasts on IMU</text>
+</svg>
